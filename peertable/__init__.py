@@ -1,6 +1,5 @@
 import traceback
 import time
-import time
 import random
 import string
 import io
@@ -45,6 +44,37 @@ class NCMDisconnectHandler(NCMHandler):
         for app in self.server.applications:
             app.disconnected(self.server, client)
 
+class NCMQueryHandler(NCMHandler):
+    MSG_TYPE = "QUERYALL"
+
+    def __init__(self, server):
+        super().__init__(server)
+        self.historic = []
+    
+    def handle(self, client, message):
+        requester_ip, requester_port, requester_id, request_id, closed = [x.decode('utf-8') for x in message.payload.split(b':')]
+        
+        if request_id in self.historic:
+            return
+        
+        self.historic.append(request_id)
+        
+        closed = closed.split('#')
+        requester_port = int(requester_port)
+        
+        self.server.connect((requester_ip, int(requester_port)), id=requester_id)
+        self.server.send_id(requester_id, Message(True, "__QUERYR", client.id))
+        
+        if self.server.id not in closed:
+            closed.append(self.server.id)
+        
+        for c in self.server.clients:
+            if c.id == requester_id:
+                c.disconnect()
+                
+            elif c.id not in closed:
+                c.send(Message(False, "QUERYALL", ':'.join([requester_ip, str(requester_port), requester_id, request_id, "#".join(closed)])))
+        
 class NCMPathfindHandler(NCMHandler):
     MSG_TYPE = "PATHFIND"
 
@@ -121,7 +151,7 @@ class MessageDeserializer(object):
         
         if len(payload) < payload_len:
             self.msg.seek(self.msg.tell() - len(payload))
-            warnings.warn("Bad message received at {}: insufficient characters for payload - message too small! (expected {} payload bytes, got {})".format(time.time(), payload_len + len(payload)))
+            warnings.warn("Bad message received at {}: insufficient characters for payload - message too small! (expected {} payload bytes, got {})".format(time.time(), payload_len, len(payload)))
             return
             
         return Message(app_level, msg_type, payload)
@@ -207,7 +237,7 @@ class RoutePending(object):
         self.target = target
         
 class PeerServer(object):
-    DEFAULT_HANDLERS = (NCMDisconnectHandler, NCMIdentifyHandler, NCMPathfindHandler, NCMRequestIdentifyHandler)
+    DEFAULT_HANDLERS = (NCMDisconnectHandler, NCMIdentifyHandler, NCMPathfindHandler, NCMRequestIdentifyHandler, NCMQueryHandler)
 
     def __init__(self, my_addr, id=None, message_timeout=60, port=2912, remote_port=None):
         self.id = id
@@ -230,12 +260,16 @@ class PeerServer(object):
         self.socket.listen(5)
         self.socket.setblocking(0)
         
+    def broadcast(self, message):
+        for c in self.clients:
+            c.send(message)
+        
     def register_app(self, app):
         self.applications.append(app)
         app.on_registered(self)
         
-    def connect(self, address):
-        self.clients.append(PeerClient(self, address))
+    def connect(self, address, id=None):
+        self.clients.append(PeerClient(self, address, id=id))
         
     def not_found(self, p):
         warnings.warn("Warning: route to {} not found! (pending message of PMID {})".format(p.target, p.id))

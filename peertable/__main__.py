@@ -1,5 +1,4 @@
 import peertable
-import random
 import base64
 
 class TestApp(peertable.PeerApplication):

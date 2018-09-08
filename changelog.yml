@@ -1,6 +1,6 @@
-"vtrack_version": "0.1.1"
-"software_name": Neurogenia
-"software_tags": ['machine learning', 'genetic algorithm', 'neural network']
+"vtrack_version": "0.1.2"
+"software_name": Peertable
+"software_tags": ['peer-to-peer', 'p2p', 'network', 'infrastructure', 'library']
 "versions":
     -   name: "0.1.1"
         changes:
@@ -10,3 +10,13 @@
             
         todo:
             SSL: SSL support
+            
+    -   name: "0.1.2"
+        changes:
+            - Added global peer query.
+            - Now connections can give the client ID beforehand, instead of
+              asking it.
+            
+    -   name: "0.1.3"
+        changes:
+            - Fixed slight issues.
